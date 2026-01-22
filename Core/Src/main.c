@@ -138,44 +138,72 @@ int main(void)
   setvbuf(stdin, NULL, _IONBF, 0);
   setvbuf(stdout, NULL, _IONBF, 0);
   LCD_2in4_test();
-  while(1) {
-	  if(HAL_GPIO_ReadPin(USRBTN_GPIO_Port, USRBTN_Pin) == GPIO_PIN_RESET) {
-		  break;
-	  }
-	  HAL_Delay(50);
-  }
+
+#define SIZE 6
+
   void Demo(void) {
 	  int x = 0, y = 0;
 	  int dx = 1, dy = 1;
-	  LCD_2IN4_Clear(MAGENTA);
+//	  LCD_2IN4_Clear(MAGENTA);
+
+	  //paletka lewa
+	  //100 - starting point pionowo
+	  //20 - starting point poziomo
+	  //szerokość: 8
+	  //długość: 80
+	  LCD_2IN4_SetWindow(100, 20, 100+80, 20+8);
+	  for(int i=0; i<80*8; i++) {
+		  LCD_2IN4_WriteData_Word(WHITE);
+	  }
+
+	  //paletka prawa
+	  //100 - starting point pionowo
+	  //300 - starting point poziomo
+	  //szerokość: 8
+	  //długość: 80
+	  LCD_2IN4_SetWindow(100, 300, 100+80, 300+8);
+	  for(int i=0; i<80*8; i++) {
+		  LCD_2IN4_WriteData_Word(WHITE);
+	  }
 
 	  while(1) {
-		  LCD_2IN4_SetWindow(x, y, x+4, y+4);
-		  for(int i = 0; i < 4*4; i++)
+
+		  LCD_2IN4_SetWindow(x, y, x+SIZE, y+SIZE);
+		  for(int i = 0; i < SIZE*SIZE; i++)
 		              LCD_2IN4_WriteData_Word(WHITE);
+
+		  LCD_2IN4_SetWindow(x, y, x + SIZE, y + SIZE);
+		  		  for(int i = 0; i < pow(SIZE,2); i++)
+		  		  			  LCD_2IN4_WriteData_Word(BLACK);
 
 		  // Update position
 		  x += dx;
 		  y += dy;
 
 		  // Bounce off edges
-		  if(x <= 0 || x + 4 >= 240) dx = -dx;
-		  if(y <= 0 || y + 4 >= 320) dy = -dy;
+		  if(x <= 0 || x + SIZE >= 240) dx=-dx;
+		  if(y <= 0 || y + SIZE >= 320) y=170;
+
+		  // Bounce off paletki
+		  if(y == 292 && x > 90 && x < 190) {
+			  dy = -dy;
+		  }
+
+		  if(y == 28 && x > 90 && x < 190) {
+			  dy = -dy;
+		  }
 
 		  // Draw new square
-		  LCD_2IN4_SetWindow(x, y, x + 4, y + 4);
-		  for(int i = 0; i < 4*4; i++)
-			  LCD_2IN4_WriteData_Word(RED);
+		  LCD_2IN4_SetWindow(x, y, x + SIZE, y + SIZE);
+		  for(int i = 0; i < pow(SIZE, 2); i++)
+			  LCD_2IN4_WriteData_Word(WHITE);
+
+		  draw_pixel(2,2,MAGENTA);
 
 		  HAL_Delay(5); // Adjust speed
 	  }
   }
   Demo();
-
-//  void draw_pixel(int x, int y, uint16_t color){
-//      LCD_2IN4_SetWindow(x, y, x+1, y+1);
-//      LCD_2IN4_WriteData_Word(color);
-//  }
 
   /* USER CODE END 2 */
 
