@@ -241,7 +241,24 @@ int main(void)
 
 	LCD_2in4_test();
 
-#define SIZE 6
+  #define SIZE 6
+  #define MAX_PLAYERS 30
+  #define MAX_NICK_LENGTH 30
+
+  //Struktura gracza
+  struct player {
+    char nick[MAX_NICK_LENGTH];
+    int score;
+  };
+
+  //Struktura listy rankingowej
+  struct rankingList {
+    int cPlayers;
+    struct player pList[MAX_PLAYERS];
+  };
+
+  struct rankingList ranking = {0};
+
 	const Tone_t rick_roll[] = {
 			// "Never gonna give you up"
 			{NOTE_A4, 110}, {NOTE_B4, 110}, {NOTE_D5, 110}, {NOTE_B4, 110},
@@ -250,6 +267,57 @@ int main(void)
 
 			{0, 0} // End marker
 	};
+
+  //Sortowanie graczy pod wzgledem wyniku
+  void bsort(struct rankingList *r) {
+    int i, j;
+    struct player temp;
+
+    for (i = 0; i < r->cPlayers - 1; i++) {
+        for (j = 0; j < r->cPlayers - i - 1; j++) {
+            if (r->pList[j].score < r->pList[j + 1].score) {
+                temp = r->pList[j];
+                r->pList[j] = r->pList[j + 1];
+                r->pList[j + 1] = temp;
+            }
+        }
+    }
+  }
+
+  void printList(struct rankingList *r){
+    for (int i = 0; i < r->cPlayers, i++) {
+        printf("%s: %d\n", r->pList[i].nick, r->pList[i].score);
+    }
+  }
+
+  int lookPlayer(struct rankingList *r, char s[]){
+      for(int i=0, i<(r->cPlayers); i++){
+          if(strcmp((r->pList[i]),s)==0) return 1;
+      }
+      return 0;
+  }
+
+  //Dodanie danych do gracza
+  void addPlayerData(struct player* p, const char n[], int s) {
+    strncpy(p->nick, n, MAX_NICK_LENGTH - 1);
+    p->nick[MAX_NICK_LENGTH - 1] = '\0';
+    p->score = s;
+  }
+
+  void addPlayerToList(struct rankingList *r, struct player *p) {
+    if (r->cPlayers < MAX_PLAYERS && lookPlayer(r, p->nick) == 0) {
+        r->pList[r->cPlayers] = *p;
+        r->cPlayers++;
+        bsort(r);
+    } else if(r->cPlayers == MAX_PLAYERS ){
+        printf("Liczba graczy zostala przekroczona!\n");
+    }
+  } 
+
+  int calculatePoints(int x, int y){
+      if(x>y) return ((x-y)*1000);
+      else return (y*500);
+  }
 
 	void rickroll(void) {
 		for (int i = 0; rick_roll[i].frequency != 0; i++)
@@ -292,6 +360,9 @@ int main(void)
 		//300 - starting point poziomo
 		//szerokość: 8
 		//długość: 80
+
+
+
 		while(1) {
 
 			//paletki
