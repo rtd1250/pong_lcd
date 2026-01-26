@@ -159,7 +159,7 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 // zliczanie czasu
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
-    if(htim->Instance == TIM3)
+    if(htim->Instance == TIM6)
     {
         game_time++;
         tick_flag = 1;
@@ -244,6 +244,8 @@ int main(void)
   MX_ADC2_Init();
   MX_TIM6_Init();
   /* USER CODE BEGIN 2 */
+  HAL_TIM_Base_Start_IT(&htim6);
+
 	setvbuf(stdin, NULL, _IONBF, 0);
 	setvbuf(stdout, NULL, _IONBF, 0);
 
@@ -311,6 +313,13 @@ int main(void)
 		//długość: 80
 		while(1) {
 
+			if(tick_flag)
+			{
+			    tick_flag = 0;
+			    printf("Time: %lus\r\n", game_time);
+			}
+
+
 			//paletki
 			if(wl_old != wl) {
 				LCD_2IN4_SetWindow(wl_old, 20, wl_old+80, 20+8);
@@ -377,7 +386,7 @@ int main(void)
 				value = HAL_ADC_GetValue(&hadc1);
 				value2 = HAL_ADC_GetValue(&hadc2);
 				float voltage = value * 3.3f / 255.0f;
-				printf("\rADC: %d, ADC2: %d", value, value2);
+				//printf("\rADC: %d, ADC2: %d", value, value2);
 				wl = value;
 				wp = value2;
 			}
