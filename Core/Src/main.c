@@ -61,6 +61,7 @@ SPI_HandleTypeDef hspi1;
 
 TIM_HandleTypeDef htim3;
 TIM_HandleTypeDef htim4;
+TIM_HandleTypeDef htim6;
 
 UART_HandleTypeDef huart2;
 
@@ -71,6 +72,10 @@ uint8_t rx = 0;
 //ADC
 uint32_t value = 0;
 uint32_t value2 = 0;
+
+//Timer
+volatile uint32_t game_time = 0;
+volatile uint8_t tick_flag = 0;
 
 //Punkty
 char punkty1[5];
@@ -102,6 +107,7 @@ static void MX_TIM3_Init(void);
 static void MX_TIM4_Init(void);
 static void MX_ADC1_Init(void);
 static void MX_ADC2_Init(void);
+static void MX_TIM6_Init(void);
 /* USER CODE BEGIN PFP */
 void Demo(struct rankingList *ranking);
 void punkty_up(int gracz);
@@ -116,9 +122,9 @@ void Buzzer_SetTone(uint32_t freq_hz, uint8_t volume);
 const Tone_t rick_roll[] = {
 
 		{NOTE_E5, 8}, {NOTE_D5, 8},{ NOTE_FS4, 4},{ NOTE_GS4, 4},
-		  {NOTE_CS5, 8}, {NOTE_B4, 8}, {NOTE_D4, 4}, {NOTE_E4, 4},
-		  {NOTE_B4, 8}, {NOTE_A4, 8}, {NOTE_CS4, 4}, {NOTE_E4, 4},
-		  {NOTE_A4, 2}, {0,0}
+		{NOTE_CS5, 8}, {NOTE_B4, 8}, {NOTE_D4, 4}, {NOTE_E4, 4},
+		{NOTE_B4, 8}, {NOTE_A4, 8}, {NOTE_CS4, 4}, {NOTE_E4, 4},
+		{NOTE_A4, 2}, {0,0}
 };
 
 int __io_putchar(int ch)
@@ -146,6 +152,15 @@ int __io_getchar(void) {
 	return ch;
 }
 
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+{
+	if(htim->Instance == TIM6)
+	{
+		game_time++;
+		tick_flag = 1;
+	}
+}
+
 void Buzzer_SetTone(uint32_t freq_hz, uint8_t volume)
 {
 	if (freq_hz == 0)
@@ -169,25 +184,25 @@ void Buzzer_SetTone(uint32_t freq_hz, uint8_t volume)
 }
 
 void rickroll(void) {
-    const uint32_t WHOLE_NOTE_DURATION = 1700;
-    uint32_t noteDuration = 0;
+	const uint32_t WHOLE_NOTE_DURATION = 1700;
+	uint32_t noteDuration = 0;
 
-    for (int i = 0; rick_roll[i].frequency != 0; i++)
-    {
-    	if(rick_roll[i].duration_ms > 0) {
-    		noteDuration = WHOLE_NOTE_DURATION / rick_roll[i].duration_ms;
-    	} else {
-    		noteDuration = WHOLE_NOTE_DURATION / abs(rick_roll[i].duration_ms)*1.5;
-    	}
+	for (int i = 0; rick_roll[i].frequency != 0; i++)
+	{
+		if(rick_roll[i].duration_ms > 0) {
+			noteDuration = WHOLE_NOTE_DURATION / rick_roll[i].duration_ms;
+		} else {
+			noteDuration = WHOLE_NOTE_DURATION / abs(rick_roll[i].duration_ms)*1.5;
+		}
 
-        Buzzer_SetTone(rick_roll[i].frequency, 50);
+		Buzzer_SetTone(rick_roll[i].frequency, 50);
 
-        HAL_Delay(noteDuration * 0.9);
+		HAL_Delay(noteDuration * 0.9);
 
-        Buzzer_SetTone(0, 0);
-        HAL_Delay(noteDuration * 0.1);
-    }
-    Buzzer_SetTone(0, 0);
+		Buzzer_SetTone(0, 0);
+		HAL_Delay(noteDuration * 0.1);
+	}
+	Buzzer_SetTone(0, 0);
 }
 
 void wyslij(char* string)
@@ -220,12 +235,12 @@ char* odczytaj(char *word, size_t size) {
 
 		HAL_UART_Transmit(&huart2, &value, 1, 10);
 		char tempStr[2] = {value, '\0'};
-			int current_x = 50 + (i * 20);
+		int current_x = 50 + (i * 20);
 
-			// Sprawdzamy, czy nie wyjdziemy poza ekran
-			if (current_x + 24 < 320) {
-				Paint_DrawString_EN (current_x, 155, tempStr, &Font24, WHITE, BLACK);
-			}
+		// Sprawdzamy, czy nie wyjdziemy poza ekran
+		if (current_x + 24 < 320) {
+			Paint_DrawString_EN (current_x, 155, tempStr, &Font24, WHITE, BLACK);
+		}
 
 		i++;
 		value = 0;
@@ -236,8 +251,10 @@ char* odczytaj(char *word, size_t size) {
 }
 
 void end(struct rankingList *ranking) {
-	char tekst[11] = {'\0'};
+	char tekst[8] = {'\0'};
 	printf("\n");
+	Paint_DrawString_EN (50, 70, "KONIEC GRY", &Font24, BLACK, WHITE);
+//	rickroll();
 	HAL_Delay(1000);
 
 	int score = 0;
@@ -260,6 +277,7 @@ void end(struct rankingList *ranking) {
 	addPlayerData(&nowy_gracz, tekst, score);
 	addPlayerToList(ranking, &nowy_gracz);
 
+
 	printf("Dodano gracza: %s z wynikiem: %d\n", tekst, score);
 	HAL_Delay(2000); // Czas na przeczytanie
 }
@@ -273,6 +291,7 @@ void punkty_up(int gracz) {
 		p2++;
 		sprintf(punkty2, "%d", p2);
 	}
+
 	Paint_DrawString_EN (50, 10, punkty1,        &Font24,    BLACK,  WHITE);
 	Paint_DrawString_EN (200, 10, punkty2,        &Font24,    BLACK,  WHITE);
 }
@@ -284,6 +303,7 @@ void pong(struct rankingList *ranking) {
 
 	//reset zmiennych
 	p1 = p2 = wcisniety = 0;
+	game_time = 0;
 	sprintf(punkty1, "0");
 	sprintf(punkty2, "0");
 	speed = 2;
@@ -293,8 +313,19 @@ void pong(struct rankingList *ranking) {
 
 	Paint_DrawString_EN (50, 10, "0", &Font24, BLACK, WHITE);
 	Paint_DrawString_EN (200, 10, "0", &Font24, BLACK, WHITE);
+	HAL_TIM_Base_Start_IT(&htim6);
 
 	while(1) {
+		//timer
+		if(tick_flag)
+		{
+			tick_flag = 0;
+			uint32_t mins = game_time / 60;
+			uint32_t secs = game_time % 60;
+			printf("Czas gry: %02lu:%02lu \r\n", mins, secs);
+		}
+
+		//handling przycisku USRBTN
 		if (HAL_GPIO_ReadPin(USRBTN_GPIO_Port, USRBTN_Pin) == GPIO_PIN_RESET
 				&& wcisniety == 0) {
 			wcisniety = 1;
@@ -305,10 +336,12 @@ void pong(struct rankingList *ranking) {
 			HAL_Delay(1000);
 			LCD_2IN4_Clear(BLACK);
 		}
+
 		if (HAL_GPIO_ReadPin(USRBTN_GPIO_Port, USRBTN_Pin) == GPIO_PIN_SET
 				&& wcisniety == 1) {
 			wcisniety = 0;
 		}
+
 		//paletki
 		if(wl_old != wl) {
 			LCD_2IN4_SetWindow(wl_old, 20, wl_old+80, 20+8);
@@ -359,7 +392,7 @@ void pong(struct rankingList *ranking) {
 			dy = (rand() % 2 == 0) ? 1 : -1;
 		}
 
-		//printf("DEBUG: y = %d, x = %d, wl = %d, wp = %d\n", y, x, wl, wp);
+//		printf("DEBUG: y = %d, x = %d, wl = %d, wp = %d\r", y, x, wl, wp);
 
 		// Bounce off paletki
 		if(y == 28 && x > wl-10 && x < wl+90) {
@@ -437,6 +470,7 @@ int main(void)
 	MX_TIM4_Init();
 	MX_ADC1_Init();
 	MX_ADC2_Init();
+	MX_TIM6_Init();
 	/* USER CODE BEGIN 2 */
 	setvbuf(stdin, NULL, _IONBF, 0);
 	setvbuf(stdout, NULL, _IONBF, 0);
@@ -450,7 +484,7 @@ int main(void)
 	HAL_ADC_Start(&hadc2);
 
 	LCD_2in4_test();
-	rickroll();
+	//	rickroll();
 
 	struct rankingList ranking = {0};
 
@@ -884,6 +918,44 @@ static void MX_TIM4_Init(void)
 
 	/* USER CODE END TIM4_Init 2 */
 	HAL_TIM_MspPostInit(&htim4);
+
+}
+
+/**
+ * @brief TIM6 Initialization Function
+ * @param None
+ * @retval None
+ */
+static void MX_TIM6_Init(void)
+{
+
+	/* USER CODE BEGIN TIM6_Init 0 */
+
+	/* USER CODE END TIM6_Init 0 */
+
+	TIM_MasterConfigTypeDef sMasterConfig = {0};
+
+	/* USER CODE BEGIN TIM6_Init 1 */
+
+	/* USER CODE END TIM6_Init 1 */
+	htim6.Instance = TIM6;
+	htim6.Init.Prescaler = 7999;
+	htim6.Init.CounterMode = TIM_COUNTERMODE_UP;
+	htim6.Init.Period = 9999;
+	htim6.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+	if (HAL_TIM_Base_Init(&htim6) != HAL_OK)
+	{
+		Error_Handler();
+	}
+	sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+	sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+	if (HAL_TIMEx_MasterConfigSynchronization(&htim6, &sMasterConfig) != HAL_OK)
+	{
+		Error_Handler();
+	}
+	/* USER CODE BEGIN TIM6_Init 2 */
+
+	/* USER CODE END TIM6_Init 2 */
 
 }
 
