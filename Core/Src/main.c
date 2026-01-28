@@ -43,7 +43,7 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-
+#define SIZE 6
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -65,7 +65,30 @@ TIM_HandleTypeDef htim4;
 UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
+//UART
+uint8_t rx = 0;
 
+//ADC
+uint32_t value = 0;
+uint32_t value2 = 0;
+
+//Punkty
+char punkty1[5];
+char punkty2[5];
+int p1 = 0;
+int p2 = 0;
+
+//Bufor
+char buf[256] = {'\0'};
+
+//Kontrola prędkości etc.
+int divider = 0;
+int wcisniety = 0;
+int speed = 2;
+
+//Pozycja paletek
+volatile int wl = 100;
+volatile int wp = 100;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -80,25 +103,23 @@ static void MX_TIM4_Init(void);
 static void MX_ADC1_Init(void);
 static void MX_ADC2_Init(void);
 /* USER CODE BEGIN PFP */
-
+void Demo(struct rankingList *ranking);
+void punkty_up(int gracz);
+char* odczytaj(char *word, size_t size);
+void wyslij(char* string);
+void Buzzer_SetTone(uint32_t freq_hz, uint8_t volume);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-uint8_t rx = 0;
-uint32_t value = 0;
-uint32_t value2 = 0;
-char punkty1[5];
-char punkty2[5];
-char buf[256] = {'\0'};
-int p1 = 0;
-int p2 = 0;
-int divider = 0;
-int wcisniety = 0;
-int speed = 2;
-volatile int wl = 100;
-volatile int wp = 100;
 
+const Tone_t rick_roll[] = {
+
+		{NOTE_E5, 8}, {NOTE_D5, 8},{ NOTE_FS4, 4},{ NOTE_GS4, 4},
+		  {NOTE_CS5, 8}, {NOTE_B4, 8}, {NOTE_D4, 4}, {NOTE_E4, 4},
+		  {NOTE_B4, 8}, {NOTE_A4, 8}, {NOTE_CS4, 4}, {NOTE_E4, 4},
+		  {NOTE_A4, 2}, {0,0}
+};
 
 int __io_putchar(int ch)
 {
@@ -133,22 +154,9 @@ void Buzzer_SetTone(uint32_t freq_hz, uint8_t volume)
 		return;
 	}
 
-	// STM32L4 Helper: Get the actual system clock (usually 80 MHz)
-	// You can also hardcode this to 80000000 if you prefer.
 	uint32_t timer_clock = 80000000;
-
-	// CALCULATE PRESCALER (PSC)
-	// We aim for a timer tick rate of 1 MHz (1,000,000 Hz) for good resolution.
-	// 80 MHz / 80 = 1 MHz. So PSC should be 79.
 	uint32_t prescaler_value = (timer_clock / 1000000) - 1;
-
-	// CALCULATE PERIOD (ARR)
-	// Now that our timer ticks at 1 MHz, the math is simple:
-	// 1,000,000 ticks per second / Desired Frequency = Total Ticks per Cycle
 	uint32_t period_value = (1000000 / freq_hz) - 1;
-
-	// CALCULATE PULSE (CCR)
-	// Duty cycle (Volume). 50 is standard.
 	uint32_t pulse_value = (period_value * volume) / 100;
 
 	// Apply settings
@@ -158,6 +166,235 @@ void Buzzer_SetTone(uint32_t freq_hz, uint8_t volume)
 
 	// Trigger update to apply changes immediately
 	HAL_TIM_GenerateEvent(&htim4, TIM_EVENTSOURCE_UPDATE);
+}
+
+void rickroll(void) {
+    const uint32_t WHOLE_NOTE_DURATION = 1700;
+    uint32_t noteDuration = 0;
+
+    for (int i = 0; rick_roll[i].frequency != 0; i++)
+    {
+    	if(rick_roll[i].duration_ms > 0) {
+    		noteDuration = WHOLE_NOTE_DURATION / rick_roll[i].duration_ms;
+    	} else {
+    		noteDuration = WHOLE_NOTE_DURATION / abs(rick_roll[i].duration_ms)*1.5;
+    	}
+
+        Buzzer_SetTone(rick_roll[i].frequency, 50);
+
+        HAL_Delay(noteDuration * 0.9);
+
+        Buzzer_SetTone(0, 0);
+        HAL_Delay(noteDuration * 0.1);
+    }
+    Buzzer_SetTone(0, 0);
+}
+
+void wyslij(char* string)
+{
+	HAL_UART_Transmit(&huart2, (uint8_t*)string, strlen(string), 1000);
+}
+
+char* odczytaj(char *word, size_t size) {
+	uint8_t value = 0;
+	int i=0;
+	while(i < size - 1) {
+		HAL_UART_Receive(&huart2, &value, 1, HAL_MAX_DELAY);
+		if (value == 0x7F) {
+			if(i>0) {
+				word[i] = '\0';
+				i--;
+				uint8_t erase[] = "\b \b";
+				HAL_UART_Transmit(&huart2, erase, 3, 10);
+			}
+			continue;
+		}
+		//jak obsłużymy \r to \n zostaje w buforze
+		if (value == '\n') {
+			continue;
+		}
+		if(value == '\r') {
+			break;
+		}
+		word[i] = value;
+
+		HAL_UART_Transmit(&huart2, &value, 1, 10);
+		char tempStr[2] = {value, '\0'};
+			int current_x = 50 + (i * 20);
+
+			// Sprawdzamy, czy nie wyjdziemy poza ekran
+			if (current_x + 24 < 320) {
+				Paint_DrawString_EN (current_x, 155, tempStr, &Font24, WHITE, BLACK);
+			}
+
+		i++;
+		value = 0;
+	}
+	word[i] = '\0';
+	wyslij("\r\n");
+	return word;
+}
+
+void end(struct rankingList *ranking) {
+	char tekst[11] = {'\0'};
+	printf("\n");
+	HAL_Delay(1000);
+
+	int score = 0;
+	int winner = (p1 > p2) ? 1 : 2;
+
+	LCD_2IN4_Clear(WHITE);
+	Paint_DrawString_EN (10, 30, "KONIEC GRY", &Font24, WHITE, BLACK);
+	if (winner == 1) {
+		Paint_DrawString_EN (30, 70, "Wygral P1!", &Font24, WHITE, BLACK);
+		score = calculatePoints(p1, p2);
+	} else {
+		Paint_DrawString_EN (30, 70, "Wygral P2!", &Font24, WHITE, BLACK);
+		score = calculatePoints(p2, p1);
+	}
+	Paint_DrawString_EN (30, 130, "Wpisz imie:", &Font24, WHITE, BLACK);
+	odczytaj(tekst, sizeof(tekst));
+	Paint_DrawString_EN (50, 155, tekst,        &Font24,    BLACK,  WHITE);
+
+	struct player nowy_gracz;
+	addPlayerData(&nowy_gracz, tekst, score);
+	addPlayerToList(ranking, &nowy_gracz);
+
+	printf("Dodano gracza: %s z wynikiem: %d\n", tekst, score);
+	HAL_Delay(2000); // Czas na przeczytanie
+}
+
+void punkty_up(int gracz) {
+	if(gracz == 1) {
+		p1++;
+		sprintf(punkty1, "%d", p1);
+	}
+	if(gracz == 2) {
+		p2++;
+		sprintf(punkty2, "%d", p2);
+	}
+	Paint_DrawString_EN (50, 10, punkty1,        &Font24,    BLACK,  WHITE);
+	Paint_DrawString_EN (200, 10, punkty2,        &Font24,    BLACK,  WHITE);
+}
+
+void pong(struct rankingList *ranking) {
+	int x = 120, y = 160;
+	int dx = 1, dy = 1;
+	int wl_old = 0, wp_old = 0;
+
+	//reset zmiennych
+	p1 = p2 = wcisniety = 0;
+	sprintf(punkty1, "0");
+	sprintf(punkty2, "0");
+	speed = 2;
+
+	LCD_2IN4_Clear(BLACK);
+	srand(HAL_GetTick());
+
+	Paint_DrawString_EN (50, 10, "0", &Font24, BLACK, WHITE);
+	Paint_DrawString_EN (200, 10, "0", &Font24, BLACK, WHITE);
+
+	while(1) {
+		if (HAL_GPIO_ReadPin(USRBTN_GPIO_Port, USRBTN_Pin) == GPIO_PIN_RESET
+				&& wcisniety == 0) {
+			wcisniety = 1;
+			speed += 5;
+			if(speed == 22) speed = 2;
+			sprintf(buf, "Predkosc: %d", speed);
+			Paint_DrawString_EN (30, 100, buf,        &Font24,    BLACK,  WHITE);
+			HAL_Delay(1000);
+			LCD_2IN4_Clear(BLACK);
+		}
+		if (HAL_GPIO_ReadPin(USRBTN_GPIO_Port, USRBTN_Pin) == GPIO_PIN_SET
+				&& wcisniety == 1) {
+			wcisniety = 0;
+		}
+		//paletki
+		if(wl_old != wl) {
+			LCD_2IN4_SetWindow(wl_old, 20, wl_old+80, 20+8);
+			LCD_2IN4_WriteData_WordBuffer(BLACK, 80*8);
+		}
+		if(wp_old != wp) {
+			LCD_2IN4_SetWindow(wp_old, 300, wp_old+80, 300+8);
+			LCD_2IN4_WriteData_WordBuffer(BLACK, 80*8);
+		}
+		wl_old = wl; wp_old = wp;
+
+		LCD_2IN4_SetWindow(wl, 20, wl+80, 20+8);
+		LCD_2IN4_WriteData_WordBuffer(WHITE, 80*8);
+		LCD_2IN4_SetWindow(wp, 300, wp+80, 300+8);
+		LCD_2IN4_WriteData_WordBuffer(WHITE, 80*8);
+
+		//piłeczka
+		LCD_2IN4_SetWindow(x, y, x+SIZE, y+SIZE);
+		LCD_2IN4_WriteData_WordBuffer(WHITE, SIZE*SIZE);
+
+		LCD_2IN4_SetWindow(x, y, x + SIZE, y + SIZE);
+		LCD_2IN4_WriteData_WordBuffer(BLACK, SIZE*SIZE);
+
+		// Update position
+		x += dx;
+		y += dy;
+
+		if(y <= 0) {
+			punkty_up(2);
+			y = 160;
+			x = 120;
+		}
+		if(y + SIZE >= 320) {
+			punkty_up(1);
+			y = 160;
+			x = 120;
+		}
+		if(p1 == 10 || p2 == 10) {
+			end(ranking);
+			break;
+		}
+
+		// Bounce off edges
+		if(x <= 0 || x + SIZE >= 240) dx=-dx;
+
+		if(y <= 0 || y + SIZE >= 320) {
+			dx = (rand() % 2 == 0) ? 1 : -1;
+			dy = (rand() % 2 == 0) ? 1 : -1;
+		}
+
+		//printf("DEBUG: y = %d, x = %d, wl = %d, wp = %d\n", y, x, wl, wp);
+
+		// Bounce off paletki
+		if(y == 28 && x > wl-10 && x < wl+90) {
+			dy = -dy;
+			Buzzer_SetTone(1000, 50);
+			HAL_Delay(20);
+			Buzzer_SetTone(0,0);
+		}
+
+		if(y == 292 && x > wp-10 && x < wp+90) {
+			dy = -dy;
+			Buzzer_SetTone(1000, 50);
+			HAL_Delay(20);
+			Buzzer_SetTone(0,0);
+		}
+
+		// Draw new square
+		LCD_2IN4_SetWindow(x, y, x + SIZE, y + SIZE);
+		LCD_2IN4_WriteData_WordBuffer(WHITE, SIZE*SIZE);
+
+
+		HAL_Delay(speed);
+
+		//pomiar co 2 takty gry
+		if(divider<10) divider++;
+		else divider = 0;
+		if(divider%2 == 0) {
+			value = HAL_ADC_GetValue(&hadc1);
+			value2 = HAL_ADC_GetValue(&hadc2);
+			//float voltage = value * 3.3f / 255.0f;
+			//printf("\rADC: %d, ADC2: %d", value, value2);
+			wl = (value > 160) ? 160 : value;
+			wp = (value2 > 160) ? 160 : value2;
+		}
+	}
 }
 /* USER CODE END 0 */
 
@@ -213,175 +450,9 @@ int main(void)
 	HAL_ADC_Start(&hadc2);
 
 	LCD_2in4_test();
-
-#define SIZE 6
+	rickroll();
 
 	struct rankingList ranking = {0};
-
-	void wyslij(char* string)
-	{
-		HAL_UART_Transmit(&huart2, (uint8_t*)string, strlen(string), 1000);
-	}
-
-	char* odczytaj(char *word, size_t size) {
-		uint8_t value = 0;
-		int i=0;
-		while(i < size - 1) {
-			HAL_UART_Receive(&huart2, &value, 1, HAL_MAX_DELAY);
-			if (value == 0x7F) {
-				if(i>0) {
-					word[i] = '\0';
-					i--;
-					uint8_t erase[] = "\b \b";
-					HAL_UART_Transmit(&huart2, erase, 3, 10);
-				}
-				continue;
-			}
-			//jak obsłużymy \r to \n zostaje w buforze
-			if (value == '\n') {
-				continue;
-			}
-			if(value == '\r') {
-				break;
-			}
-			word[i] = value;
-			i++;
-			HAL_UART_Transmit(&huart2, &value, 1, 10);
-			value = 0;
-		}
-		word[i] = '\0';
-		wyslij("\r\n");
-		return word;
-	}
-
-	void end() {
-		Paint_DrawString_EN (50, 50, "Wpisz imie:", &Font24,  BLACK,  WHITE);
-		char tekst[11] = {'\0'};
-		printf("\n");
-		odczytaj(tekst, sizeof(tekst));
-		Paint_DrawString_EN (50, 70, tekst,        &Font24,    BLACK,  WHITE);
-	}
-
-	void punkty_up(int gracz) {
-		if(gracz == 1) {
-			p1++;
-			sprintf(punkty1, "%d", p1);
-		}
-		if(gracz == 2) {
-			p2++;
-			sprintf(punkty2, "%d", p2);
-		}
-		Paint_DrawString_EN (50, 10, punkty1,        &Font24,    BLACK,  WHITE);
-		Paint_DrawString_EN (200, 10, punkty2,        &Font24,    BLACK,  WHITE);
-	}
-
-	void Demo(void) {
-		int x = 0, y = 0;
-		int dx = 1, dy = 1;
-		int wl_old = 0, wp_old = 0;
-		srand(42);
-
-		while(1) {
-			if (HAL_GPIO_ReadPin(USRBTN_GPIO_Port, USRBTN_Pin) == GPIO_PIN_RESET
-					&& wcisniety == 0) {
-				wcisniety = 1;
-				speed += 5;
-				if(speed == 22) speed = 2;
-				sprintf(buf, "Predkosc: %d", speed);
-				Paint_DrawString_EN (30, 100, buf,        &Font24,    BLACK,  WHITE);
-				HAL_Delay(1000);
-				LCD_2IN4_Clear(BLACK);
-			}
-			if (HAL_GPIO_ReadPin(USRBTN_GPIO_Port, USRBTN_Pin) == GPIO_PIN_SET
-					&& wcisniety == 1) {
-				wcisniety = 0;
-			}
-			//paletki
-			if(wl_old != wl) {
-				LCD_2IN4_SetWindow(wl_old, 20, wl_old+80, 20+8);
-				LCD_2IN4_WriteData_WordBuffer(BLACK, 80*8);
-			}
-			if(wp_old != wp) {
-				LCD_2IN4_SetWindow(wp_old, 300, wp_old+80, 300+8);
-				LCD_2IN4_WriteData_WordBuffer(BLACK, 80*8);
-			}
-			wl_old = wl; wp_old = wp;
-
-			LCD_2IN4_SetWindow(wl, 20, wl+80, 20+8);
-			LCD_2IN4_WriteData_WordBuffer(WHITE, 80*8);
-			LCD_2IN4_SetWindow(wp, 300, wp+80, 300+8);
-			LCD_2IN4_WriteData_WordBuffer(WHITE, 80*8);
-
-			//piłeczka
-			LCD_2IN4_SetWindow(x, y, x+SIZE, y+SIZE);
-			LCD_2IN4_WriteData_WordBuffer(WHITE, SIZE*SIZE);
-
-			LCD_2IN4_SetWindow(x, y, x + SIZE, y + SIZE);
-			LCD_2IN4_WriteData_WordBuffer(BLACK, SIZE*SIZE);
-
-			// Update position
-			x += dx;
-			y += dy;
-
-			if(y <= 0) {
-				punkty_up(2);
-			}
-			if(y + SIZE >= 320) {
-				punkty_up(1);
-			}
-			if(p1 == 10 || p2 == 10) {
-				break;
-			}
-			// Bounce off edges
-			if(x <= 0 || x + SIZE >= 240) dx=-dx;
-			if(y <= 0 || y + SIZE >= 320) {
-				y = 170;
-				x = 120;
-			}
-
-			//printf("DEBUG: y = %d, x = %d, wl = %d, wp = %d\n", y, x, wl, wp);
-
-			// Bounce off paletki
-			if(y == 28 && x > wl-10 && x < wl+90) {
-				dy = -dy;
-				Buzzer_SetTone(1000, 50);
-				HAL_Delay(20);
-				Buzzer_SetTone(0,0);
-			}
-
-			if(y == 292 && x > wp-10 && x < wp+90) {
-				dy = -dy;
-				Buzzer_SetTone(1000, 50);
-				HAL_Delay(20);
-				Buzzer_SetTone(0,0);
-			}
-
-			// Draw new square
-			LCD_2IN4_SetWindow(x, y, x + SIZE, y + SIZE);
-			LCD_2IN4_WriteData_WordBuffer(WHITE, SIZE*SIZE);
-
-
-			HAL_Delay(speed);
-
-			//pomiar co 2 takty gry
-			if(divider<10) divider++;
-			else divider = 0;
-			if(divider%2 == 0) {
-				value = HAL_ADC_GetValue(&hadc1);
-				value2 = HAL_ADC_GetValue(&hadc2);
-				float voltage = value * 3.3f / 255.0f;
-				printf("\rADC: %d, ADC2: %d", value, value2);
-				wl = value;
-				wp = value2;
-			}
-		}
-		end();
-		while(1) {
-			HAL_Delay(1000);
-			//w tym momencie wpisujemy imiona graczy albo coś
-		}
-	}
-	Demo();
 
 	/* USER CODE END 2 */
 
@@ -389,11 +460,47 @@ int main(void)
 	/* USER CODE BEGIN WHILE */
 	while (1)
 	{
-		//placeholder loop
-		LCD_2IN4_Clear(MAGENTA);
-		HAL_Delay(1000);
 		LCD_2IN4_Clear(WHITE);
-		HAL_Delay(1000);
+		if (ranking.cPlayers > 0) {
+			// --- Wyświetlanie rankingu (TOP 5) ---
+			Paint_DrawString_EN(40, 20, "TOP 5 GRACZY:", &Font20, WHITE, BLACK);
+
+			int limit = (ranking.cPlayers > 5) ? 5 : ranking.cPlayers; // Max 5 lub mniej
+			char line_buf[50];
+			int y_pos = 60; // Pozycja startowa Y dla listy
+
+			for(int i = 0; i < limit; i++) {
+				// Formatowanie tekstu: "1. Nick: Wynik"
+				// Używamy snprintf dla bezpieczeństwa bufora
+				// %-10s wyrówna nick do lewej (padding spacjami), żeby liczby były równo (opcjonalne)
+				snprintf(line_buf, sizeof(line_buf), "%d.%s: %d",
+						i + 1,
+						ranking.pList[i].nick,
+						ranking.pList[i].score);
+
+				// Rysowanie linii. Używam Font16, żeby zmieściły się dłuższe nazwy
+				Paint_DrawString_EN(20, y_pos, line_buf, &Font16, WHITE, BLACK);
+				y_pos += 25; // Odstęp między wierszami
+			}
+		}
+		Paint_DrawString_EN(20, 200, "Wcisnij przycisk", &Font16, WHITE, BLACK);
+		Paint_DrawString_EN(50, 220, "aby zagrac!!!", &Font20, WHITE, BLACK);
+
+		printf("Czekam na przycisk...\n");
+
+		// Oczekiwanie na wciśnięcie przycisku (Active Low - zakładam GPIO_PIN_RESET to wciśnięcie)
+		while(HAL_GPIO_ReadPin(USRBTN_GPIO_Port, USRBTN_Pin) != GPIO_PIN_RESET) {
+			HAL_Delay(50);
+		}
+		// Debounce i reakcja
+		HAL_Delay(200);
+
+		// 1. Wyświetlenie rankingu na UART (Zgodnie z życzeniem)
+		printf("\r\n--- RANKING GRACZY ---\r\n");
+		printList(&ranking);
+		printf("----------------------\r\nStart gry za 2 sekundy...\r\n");
+
+		pong(&ranking);
 		/* USER CODE END WHILE */
 
 		/* USER CODE BEGIN 3 */
