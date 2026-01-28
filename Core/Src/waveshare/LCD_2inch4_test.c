@@ -24,7 +24,7 @@ void LCD_2in4_test()
 	//	DEV_Delay_ms(100);
 	//
 	//	printf("Painting...\r\n");
-	//	Paint_SetRotate(ROTATE_0);
+	Paint_SetRotate(ROTATE_90);
 	//	Paint_DrawString_EN (5, 10, "JEBAC",        &Font24,    YELLOW,  RED);
 	//	Paint_DrawString_EN (5, 34, "LODZ",  &Font24,    BLUE,    CYAN);
 	//	Paint_DrawFloatNum  (5, 150 ,987.654321,5,  &Font20,    WHITE,   LIGHTBLUE);
