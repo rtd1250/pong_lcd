@@ -51,6 +51,6 @@ void addPlayerToList(struct rankingList *r, struct player *p) {
 }
 
 int calculatePoints(int x, int y){
-	if(x>y) return ((x-y)*1000);
-	else return (y*500);
+	if(y==0) return x*100;
+	else return (x*100)/y;
 }
