@@ -231,7 +231,7 @@ void LCD_2IN4_SetWindow(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1)
 
 void LCD_2IN4_WriteData_WordBuffer(uint16_t color, uint32_t count)
 {
-    static uint8_t buf[64 * 2];  // 64 pixels at a time
+    static uint8_t buf[64 * 2];  //64 piksele na bufor
     uint32_t pixels;
 
     // Fill buffer once

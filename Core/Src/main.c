@@ -119,7 +119,7 @@ void Buzzer_SetTone(uint32_t freq_hz, uint8_t volume);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
-const Tone_t rick_roll[] = {
+const Tone_t nokia[] = {
 
 		{NOTE_E5, 8}, {NOTE_D5, 8},{ NOTE_FS4, 4},{ NOTE_GS4, 4},
 		{NOTE_CS5, 8}, {NOTE_B4, 8}, {NOTE_D4, 4}, {NOTE_E4, 4},
@@ -183,19 +183,19 @@ void Buzzer_SetTone(uint32_t freq_hz, uint8_t volume)
 	HAL_TIM_GenerateEvent(&htim4, TIM_EVENTSOURCE_UPDATE);
 }
 
-void rickroll(void) {
+void nokia(void) {
 	const uint32_t WHOLE_NOTE_DURATION = 1700;
 	uint32_t noteDuration = 0;
 
-	for (int i = 0; rick_roll[i].frequency != 0; i++)
+	for (int i = 0; nokia[i].frequency != 0; i++)
 	{
-		if(rick_roll[i].duration_ms > 0) {
-			noteDuration = WHOLE_NOTE_DURATION / rick_roll[i].duration_ms;
+		if(nokia[i].duration_ms > 0) {
+			noteDuration = WHOLE_NOTE_DURATION / nokia[i].duration_ms;
 		} else {
-			noteDuration = WHOLE_NOTE_DURATION / abs(rick_roll[i].duration_ms)*1.5;
+			noteDuration = WHOLE_NOTE_DURATION / abs(nokia[i].duration_ms)*1.5;
 		}
 
-		Buzzer_SetTone(rick_roll[i].frequency, 50);
+		Buzzer_SetTone(nokia[i].frequency, 50);
 
 		HAL_Delay(noteDuration * 0.9);
 
@@ -236,11 +236,7 @@ char* odczytaj(char *word, size_t size) {
 		HAL_UART_Transmit(&huart2, &value, 1, 10);
 		char tempStr[2] = {value, '\0'};
 		int current_x = 50 + (i * 20);
-
-		// Sprawdzamy, czy nie wyjdziemy poza ekran
-		if (current_x + 24 < 320) {
-			Paint_DrawString_EN (current_x, 155, tempStr, &Font24, WHITE, BLACK);
-		}
+		Paint_DrawString_EN (current_x, 155, tempStr, &Font24, WHITE, BLACK);
 
 		i++;
 		value = 0;
@@ -254,7 +250,7 @@ void end(struct rankingList *ranking) {
 	char tekst[8] = {'\0'};
 	printf("\n");
 	Paint_DrawString_EN (50, 70, "KONIEC GRY", &Font24, BLACK, WHITE);
-//	rickroll();
+	nokia();
 	HAL_Delay(1000);
 
 	int score = 0;
@@ -292,8 +288,8 @@ void punkty_up(int gracz) {
 		sprintf(punkty2, "%d", p2);
 	}
 
-	Paint_DrawString_EN (50, 10, punkty1,        &Font24,    BLACK,  WHITE);
-	Paint_DrawString_EN (200, 10, punkty2,        &Font24,    BLACK,  WHITE);
+	Paint_DrawString_EN (50, 10, punkty1, &Font24, BLACK, WHITE);
+	Paint_DrawString_EN (200, 10, punkty2, &Font24, BLACK, WHITE);
 }
 
 void pong(struct rankingList *ranking) {
@@ -365,7 +361,7 @@ void pong(struct rankingList *ranking) {
 		LCD_2IN4_SetWindow(x, y, x + SIZE, y + SIZE);
 		LCD_2IN4_WriteData_WordBuffer(BLACK, SIZE*SIZE);
 
-		// Update position
+		//update pozycji
 		x += dx;
 		y += dy;
 
@@ -379,6 +375,7 @@ void pong(struct rankingList *ranking) {
 			y = 160;
 			x = 120;
 		}
+		//warunek wygranej
 		if(p1 == 10 || p2 == 10) {
 			end(ranking);
 			break;
@@ -391,8 +388,6 @@ void pong(struct rankingList *ranking) {
 			dx = (rand() % 2 == 0) ? 1 : -1;
 			dy = (rand() % 2 == 0) ? 1 : -1;
 		}
-
-//		printf("DEBUG: y = %d, x = %d, wl = %d, wp = %d\r", y, x, wl, wp);
 
 		// Bounce off paletki
 		if(y == 28 && x > wl-10 && x < wl+90) {
@@ -409,7 +404,6 @@ void pong(struct rankingList *ranking) {
 			Buzzer_SetTone(0,0);
 		}
 
-		// Draw new square
 		LCD_2IN4_SetWindow(x, y, x + SIZE, y + SIZE);
 		LCD_2IN4_WriteData_WordBuffer(WHITE, SIZE*SIZE);
 
@@ -496,7 +490,6 @@ int main(void)
 	{
 		LCD_2IN4_Clear(WHITE);
 		if (ranking.cPlayers > 0) {
-			// --- Wyświetlanie rankingu (TOP 5) ---
 			Paint_DrawString_EN(40, 20, "TOP 5 GRACZY:", &Font20, WHITE, BLACK);
 
 			int limit = (ranking.cPlayers > 5) ? 5 : ranking.cPlayers; // Max 5 lub mniej
@@ -505,14 +498,11 @@ int main(void)
 
 			for(int i = 0; i < limit; i++) {
 				// Formatowanie tekstu: "1. Nick: Wynik"
-				// Używamy snprintf dla bezpieczeństwa bufora
-				// %-10s wyrówna nick do lewej (padding spacjami), żeby liczby były równo (opcjonalne)
 				snprintf(line_buf, sizeof(line_buf), "%d.%s: %d",
 						i + 1,
 						ranking.pList[i].nick,
 						ranking.pList[i].score);
 
-				// Rysowanie linii. Używam Font16, żeby zmieściły się dłuższe nazwy
 				Paint_DrawString_EN(20, y_pos, line_buf, &Font16, WHITE, BLACK);
 				y_pos += 25; // Odstęp między wierszami
 			}
@@ -522,14 +512,14 @@ int main(void)
 
 		printf("Czekam na przycisk...\n");
 
-		// Oczekiwanie na wciśnięcie przycisku (Active Low - zakładam GPIO_PIN_RESET to wciśnięcie)
 		while(HAL_GPIO_ReadPin(USRBTN_GPIO_Port, USRBTN_Pin) != GPIO_PIN_RESET) {
 			HAL_Delay(50);
 		}
-		// Debounce i reakcja
+
+		//debounce
 		HAL_Delay(200);
 
-		// 1. Wyświetlenie rankingu na UART (Zgodnie z życzeniem)
+		//Wyświetlenie rankingu na UART
 		printf("\r\n--- RANKING GRACZY ---\r\n");
 		printList(&ranking);
 		printf("----------------------\r\nStart gry za 2 sekundy...\r\n");
