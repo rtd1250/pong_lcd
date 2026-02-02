@@ -234,7 +234,6 @@ void LCD_2IN4_WriteData_WordBuffer(uint16_t color, uint32_t count)
     static uint8_t buf[64 * 2];  //64 piksele na bufor
     uint32_t pixels;
 
-    // Fill buffer once
     for (int i = 0; i < 64; i++) {
         buf[2*i]   = color >> 8;
         buf[2*i+1] = color & 0xFF;
